@@ -32,6 +32,9 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 	trafficRepo := repository.NewMongoTrafficRepo(db)
 	trafficUserCase := usecase.NewTrafficUseCase(trafficRepo)
 	trafficHandler := handler.NewTrafficHandler(trafficUserCase)
+	signalRepo := repository.NewSignalRepo(db)
+	signalUseCase := usecase.NewSignalUseCase(signalRepo)
+	signalHandler := handler.NewSignalHandler(signalUseCase)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -45,6 +48,7 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 		})
 		r.Post("/user", app.InsertUser)
 		r.Post("/traffic", trafficHandler.Create)
+		r.Post("/signal", signalHandler.CreateSignal)
 		// println("hello")
 	})
 
