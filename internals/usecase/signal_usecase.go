@@ -20,3 +20,7 @@ func NewSignalUseCase(repo repository.SignalRepo) *SignalUseCase {
 func (uc *SignalUseCase) CreateGroupSignal(ctx context.Context, data *models.GroupSignal) (*models.GroupSignal, error) {
 	return uc.SignalRepo.CreateGroupSignal(ctx, data)
 }
+
+func (uc *SignalUseCase) GetAllSignal(ctx context.Context) (*[]models.GroupSignal, error) {
+	return uc.SignalRepo.GetAllSignal(ctx)
+}

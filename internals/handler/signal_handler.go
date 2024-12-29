@@ -24,7 +24,8 @@ func (h *SignalHandler) CreateSignal(w http.ResponseWriter, r *http.Request) {
 	var signalData models.GroupSignal
 	err := utils.ReadJSON(w, r, &signalData)
 	if err != nil {
-		http.Error(w, "invalid JSON data", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("could not get signals: %v", err), http.StatusInternalServerError)
+
 		fmt.Printf("Error reading JSON: %v\n", err)
 		return
 	}
@@ -39,6 +40,18 @@ func (h *SignalHandler) CreateSignal(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Created signal data: %+v\n", createdSignalData)
 
 	err = utils.WriteJSON(w, http.StatusCreated, createdSignalData)
+	if err != nil {
+		fmt.Printf("Error writing JSON response: %v\n", err)
+		http.Error(w, "could not write response", http.StatusInternalServerError)
+	}
+}
+func (h *SignalHandler) GetSignalHandler(w http.ResponseWriter, r *http.Request) {
+	signalsData, err := h.signalUseCase.SignalRepo.GetAllSignal(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("could not get signals: %v", err), http.StatusInternalServerError)
+		return
+	}
+	err = utils.WriteJSON(w, http.StatusOK, signalsData)
 	if err != nil {
 		fmt.Printf("Error writing JSON response: %v\n", err)
 		http.Error(w, "could not write response", http.StatusInternalServerError)

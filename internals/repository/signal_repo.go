@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jitendravee/clean_go/internals/models"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -34,5 +35,19 @@ func (r *MongoSignalRepo) CreateGroupSignal(ctx context.Context, data *models.Gr
 	return data, nil
 }
 func (r *MongoSignalRepo) GetAllSignal(ctx context.Context) (*[]models.GroupSignal, error) {
-	return nil, nil
+	collection := r.db.Collection("signals")
+
+	cursor, err := collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("could not get the data: %v", err)
+	}
+	defer cursor.Close(ctx)
+
+	var signalsData []models.GroupSignal
+
+	if err := cursor.All(ctx, &signalsData); err != nil {
+		return nil, fmt.Errorf("cursor error: %v", err)
+	}
+
+	return &signalsData, nil
 }
