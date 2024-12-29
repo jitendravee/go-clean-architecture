@@ -49,6 +49,7 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 		r.Post("/user", app.InsertUser)
 		r.Post("/traffic", trafficHandler.Create)
 		r.Post("/signal", signalHandler.CreateSignal)
+		r.Get("/signal", signalHandler.GetSignalHandler)
 		// println("hello")
 	})
 
