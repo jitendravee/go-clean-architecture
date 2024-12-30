@@ -50,6 +50,7 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 		r.Post("/traffic", trafficHandler.Create)
 		r.Post("/signal", signalHandler.CreateSignal)
 		r.Get("/signal", signalHandler.GetSignalHandler)
+		r.Get("/signal/{group_id}", signalHandler.GetGroupSignalByIdHandler)
 		// println("hello")
 	})
 

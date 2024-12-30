@@ -1,7 +1,7 @@
 package models
 
 type SignalGroup struct {
-	SignalGroup []SignalGroup `json:"signal_group"`
+	SignalGroup []GroupSignal `json:"signal_group"`
 }
 
 type GroupSignal struct {
@@ -18,5 +18,5 @@ type SingleSignal struct {
 	VehicleCount   int    `json:"vehicle_count"`
 	GreenDuration  int    `json:"green_duration"`
 	YellowDuration int    `json:"yellow_duration"`
-	RedDuration    int    `json:"red_duration"`
+	RedDuration    int    `json:"red_duaration"`
 }
