@@ -9,12 +9,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type SignalRepo interface {
 	CreateGroupSignal(context.Context, *models.GroupSignal) (*models.GroupSignal, error)
 	GetAllSignal(context.Context) (*models.SignalGroup, error)
 	GetGroupSignalById(context.Context, string) (*models.GroupSignal, error)
+	UpdateVechileCountBySignalId(context.Context, *models.UpdateVehicleCountRequest, string, string) (*models.GroupSignal, error)
 }
 
 type MongoSignalRepo struct {
@@ -24,40 +26,91 @@ type MongoSignalRepo struct {
 func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 	return &MongoSignalRepo{db}
 }
+func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateVehicleCountRequest, groupId string, signalId string) (*models.GroupSignal, error) {
+	collection := r.db.Collection("signals")
+
+	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
+	if err != nil {
+		log.Printf("Error converting groupId to ObjectID: %v\n", err)
+		return nil, fmt.Errorf("invalid groupId format: %w", err)
+	}
+
+	filter := bson.M{
+		"_id":         objectGroupId,
+		"signals._id": signalId,
+	}
+
+	update := bson.M{
+		"$set": bson.M{"signals.$.vehicle_count": updateCountRequest.VehicleCount},
+	}
+
+	result := collection.FindOneAndUpdate(
+		ctx,
+		filter,
+		update,
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+
+	if result.Err() != nil {
+		if result.Err() == mongo.ErrNoDocuments {
+			log.Printf("No document found matching the filter.\n")
+			return nil, fmt.Errorf("signal not found")
+		}
+		return nil, fmt.Errorf("could not update the signal count: %v", result.Err())
+	}
+
+	var updatedDoc bson.M
+	if err := result.Decode(&updatedDoc); err != nil {
+		log.Printf("Error decoding the updated document: %v\n", err)
+		return nil, fmt.Errorf("could not decode the updated document: %v", err)
+	}
+
+	var updatedSignal models.GroupSignal
+	if err := result.Decode(&updatedSignal); err != nil {
+		log.Printf("Error decoding the updated signal: %v\n", err)
+		return nil, fmt.Errorf("could not decode the signal: %v", err)
+	}
+
+	return &updatedSignal, nil
+}
 
 func (r *MongoSignalRepo) CreateGroupSignal(ctx context.Context, data *models.GroupSignal) (*models.GroupSignal, error) {
-
 	collection := r.db.Collection("signals")
+
+	for i := range data.Signals {
+		if data.Signals[i].SingleSignalId == "" {
+			data.Signals[i].SingleSignalId = primitive.NewObjectID().Hex()
+		}
+	}
+
 	insertResult, err := collection.InsertOne(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("could not insert the data: %v", err)
-
 	}
+
 	data.GroupSignalId = insertResult.InsertedID.(primitive.ObjectID).Hex()
+
 	return data, nil
 }
-func (r *MongoSignalRepo) GetGroupSignalById(ctx context.Context, id string) (*models.GroupSignal, error) {
-	// Log the start of the function and the ID being searched for
-	log.Printf("GetGroupSignalById called with ID: %s\n", id)
 
-	// Reference the collection in MongoDB
+func (r *MongoSignalRepo) GetGroupSignalById(ctx context.Context, id string) (*models.GroupSignal, error) {
+
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Printf("Error converting ID to ObjectID: %v\n", err)
+		return nil, fmt.Errorf("invalid ID format: %w", err)
+	}
+
 	collection := r.db.Collection("signals")
 
-	// Create the filter for the query based on the ID
-	filter := bson.M{"group_id": id}
+	filter := bson.M{"_id": objectId}
 
-	// Log the filter to ensure it's correct
 	log.Printf("MongoDB filter: %+v\n", filter)
 
-	// Declare a variable to hold the result
 	var groupSignal models.GroupSignal
 
-	// Perform the query to find the document
-	err := collection.FindOne(ctx, filter).Decode(&groupSignal)
-
-	// Check for errors after querying
+	err = collection.FindOne(ctx, filter).Decode(&groupSignal)
 	if err != nil {
-		// Log the error if it occurs
 		if err == mongo.ErrNoDocuments {
 			log.Printf("No document found for ID: %s\n", id)
 			return nil, nil
@@ -66,10 +119,6 @@ func (r *MongoSignalRepo) GetGroupSignalById(ctx context.Context, id string) (*m
 		return nil, err
 	}
 
-	// Log the successful retrieval of the document
-	log.Printf("Found document for ID: %s: %+v\n", id, groupSignal)
-
-	// Return the found document
 	return &groupSignal, nil
 }
 

@@ -15,8 +15,12 @@ type SingleSignal struct {
 	SingleSignalId string `json:"signal_id,omitempty" bson:"_id,omitempty"`
 	LaneNo         int    `json:"lane_no"`
 	CurrentColor   string `json:"current_color"`
-	VehicleCount   int    `json:"vehicle_count"`
+	VehicleCount   int    `json:"vehicle_count" bson:"vehicle_count"`
 	GreenDuration  int    `json:"green_duration"`
 	YellowDuration int    `json:"yellow_duration"`
 	RedDuration    int    `json:"red_duaration"`
+}
+
+type UpdateVehicleCountRequest struct {
+	VehicleCount int `json:"vehicle_count"`
 }

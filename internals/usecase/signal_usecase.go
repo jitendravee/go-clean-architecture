@@ -28,3 +28,6 @@ func (uc *SignalUseCase) GetAllSignal(ctx context.Context) (*models.SignalGroup,
 func (uc *SignalUseCase) GetGroupSignalByIdUseCase(ctx context.Context, groupId string) (*models.GroupSignal, error) {
 	return uc.SignalRepo.GetGroupSignalById(ctx, groupId)
 }
+func (uc *SignalUseCase) UpdateVechileCountBySignalIdUseCase(ctx context.Context, updateCountRequest *models.UpdateVehicleCountRequest, groupId string, signalId string) (*models.GroupSignal, error) {
+	return uc.SignalRepo.UpdateVechileCountBySignalId(ctx, updateCountRequest, groupId, signalId)
+}
