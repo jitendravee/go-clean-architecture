@@ -15,7 +15,7 @@ type SignalRepo interface {
 	CreateGroupSignal(context.Context, *models.GroupSignal) (*models.GroupSignal, error)
 	GetAllSignal(context.Context) (*models.SignalGroup, error)
 	GetGroupSignalById(context.Context, string) (*models.GroupSignal, error)
-	UpdateVechileCountBySignalId(context.Context, *models.UpdateVehicleCountRequest, string, string) (*models.GroupSignal, error)
+	UpdateVechileCountBySignalId(context.Context, *models.UpdateSignalCountGroup, string) (*models.GroupSignal, error)
 }
 
 type MongoSignalRepo struct {
@@ -25,15 +25,17 @@ type MongoSignalRepo struct {
 func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 	return &MongoSignalRepo{db}
 }
-func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateVehicleCountRequest, groupId string, signalId string) (*models.GroupSignal, error) {
+func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	collection := r.db.Collection("signals")
 
+	// Convert groupId to ObjectID
 	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
 	if err != nil {
 		log.Printf("Error converting groupId to ObjectID: %v\n", err)
 		return nil, fmt.Errorf("invalid groupId format: %w", err)
 	}
 
+	// Fetch the existing group signal document
 	var groupSignal models.GroupSignal
 	err = collection.FindOne(ctx, bson.M{"_id": objectGroupId}).Decode(&groupSignal)
 	if err != nil {
@@ -45,17 +47,25 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to fetch group: %w", err)
 	}
 
+	// Update the vehicle count for each signal
 	totalCycle := 120
 	totalVehicleCount := 0
 
-	for i, signal := range groupSignal.Signals {
-		if signal.SingleSignalId == signalId {
-			groupSignal.Signals[i].VehicleCount = updateCountRequest.VehicleCount
+	// Loop over the signals and update the vehicle count
+	for _, signalUpdate := range updateCountRequest.Signals {
+		// Find the signal in the group's signals by SignalSingleId
+		for i, signal := range groupSignal.Signals {
+			if signal.SingleSignalId == signalUpdate.SignalSingleId {
+				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
+			}
+			// Accumulate the total vehicle count
+			totalVehicleCount += groupSignal.Signals[i].VehicleCount
 		}
-		totalVehicleCount += groupSignal.Signals[i].VehicleCount
 	}
 
+	// Recalculate the green, yellow, and red durations for all signals
 	for i, signal := range groupSignal.Signals {
+		// Calculate green duration based on the proportion of vehicle count
 		greenDuration := int((float64(signal.VehicleCount) / float64(totalVehicleCount)) * float64(totalCycle))
 		if greenDuration < 10 {
 			greenDuration = 10
@@ -63,14 +73,17 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 			greenDuration = 60
 		}
 
+		// Set the yellow and red durations (fixed in this example)
 		yellowDuration := 5
 		redDuration := totalCycle - greenDuration - yellowDuration
 
+		// Update the signal's durations
 		groupSignal.Signals[i].GreenDuration = greenDuration
 		groupSignal.Signals[i].YellowDuration = yellowDuration
 		groupSignal.Signals[i].RedDuration = redDuration
 	}
 
+	// Update the signals in the database with the new counts and durations
 	_, err = collection.UpdateOne(
 		ctx,
 		bson.M{"_id": objectGroupId},
@@ -81,6 +94,7 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to update group signals: %w", err)
 	}
 
+	// Return the updated group signal
 	return &groupSignal, nil
 }
 

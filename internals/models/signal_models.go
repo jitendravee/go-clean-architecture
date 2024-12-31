@@ -21,6 +21,11 @@ type SingleSignal struct {
 	RedDuration    int    `json:"red_duaration"`
 }
 
+type UpdateSignalCountGroup struct {
+	Signals []UpdateVehicleCountRequest `json:"signals"`
+}
+
 type UpdateVehicleCountRequest struct {
-	VehicleCount int `json:"vehicle_count"`
+	SignalSingleId string `json:"signal_id"`
+	VehicleCount   int    `json:"vehicle_count"`
 }

@@ -51,7 +51,7 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 		r.Post("/signal", signalHandler.CreateSignal)
 		r.Get("/signal", signalHandler.GetSignalHandler)
 		r.Get("/signal/{group_id}", signalHandler.GetGroupSignalByIdHandler)
-		r.Patch("/signal/{group_id}/single/{signal_id}", signalHandler.UpdateVechileCountHandler)
+		r.Patch("/signal/{group_id}/update-count", signalHandler.UpdateVechileCountHandler)
 	})
 
 	return r

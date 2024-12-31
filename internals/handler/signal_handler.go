@@ -86,14 +86,13 @@ func (h *SignalHandler) GetGroupSignalByIdHandler(w http.ResponseWriter, r *http
 
 func (h *SignalHandler) UpdateVechileCountHandler(w http.ResponseWriter, r *http.Request) {
 	groupId := utils.GetParams(r, "group_id")
-	signalId := utils.GetParams(r, "signal_id")
-	var updateCountRequest models.UpdateVehicleCountRequest
+	var updateCountRequest models.UpdateSignalCountGroup
 	err := utils.ReadJSON(w, r, &updateCountRequest)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
-	updateSignalData, err := h.signalUseCase.UpdateVechileCountBySignalIdUseCase(r.Context(), &updateCountRequest, groupId, signalId)
+	updateSignalData, err := h.signalUseCase.UpdateVechileCountBySignalIdUseCase(r.Context(), &updateCountRequest, groupId)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update vehicle count: %v", err), http.StatusInternalServerError)
