@@ -9,7 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type SignalRepo interface {
@@ -35,43 +34,54 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("invalid groupId format: %w", err)
 	}
 
-	filter := bson.M{
-		"_id":         objectGroupId,
-		"signals._id": signalId,
-	}
-
-	update := bson.M{
-		"$set": bson.M{"signals.$.vehicle_count": updateCountRequest.VehicleCount},
-	}
-
-	result := collection.FindOneAndUpdate(
-		ctx,
-		filter,
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	)
-
-	if result.Err() != nil {
-		if result.Err() == mongo.ErrNoDocuments {
-			log.Printf("No document found matching the filter.\n")
-			return nil, fmt.Errorf("signal not found")
+	var groupSignal models.GroupSignal
+	err = collection.FindOne(ctx, bson.M{"_id": objectGroupId}).Decode(&groupSignal)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Printf("Group not found for groupId: %s\n", groupId)
+			return nil, fmt.Errorf("group not found")
 		}
-		return nil, fmt.Errorf("could not update the signal count: %v", result.Err())
+		log.Printf("Error fetching group: %v\n", err)
+		return nil, fmt.Errorf("failed to fetch group: %w", err)
 	}
 
-	var updatedDoc bson.M
-	if err := result.Decode(&updatedDoc); err != nil {
-		log.Printf("Error decoding the updated document: %v\n", err)
-		return nil, fmt.Errorf("could not decode the updated document: %v", err)
+	totalCycle := 120
+	totalVehicleCount := 0
+
+	for i, signal := range groupSignal.Signals {
+		if signal.SingleSignalId == signalId {
+			groupSignal.Signals[i].VehicleCount = updateCountRequest.VehicleCount
+		}
+		totalVehicleCount += groupSignal.Signals[i].VehicleCount
 	}
 
-	var updatedSignal models.GroupSignal
-	if err := result.Decode(&updatedSignal); err != nil {
-		log.Printf("Error decoding the updated signal: %v\n", err)
-		return nil, fmt.Errorf("could not decode the signal: %v", err)
+	for i, signal := range groupSignal.Signals {
+		greenDuration := int((float64(signal.VehicleCount) / float64(totalVehicleCount)) * float64(totalCycle))
+		if greenDuration < 10 {
+			greenDuration = 10
+		} else if greenDuration > 60 {
+			greenDuration = 60
+		}
+
+		yellowDuration := 5
+		redDuration := totalCycle - greenDuration - yellowDuration
+
+		groupSignal.Signals[i].GreenDuration = greenDuration
+		groupSignal.Signals[i].YellowDuration = yellowDuration
+		groupSignal.Signals[i].RedDuration = redDuration
 	}
 
-	return &updatedSignal, nil
+	_, err = collection.UpdateOne(
+		ctx,
+		bson.M{"_id": objectGroupId},
+		bson.M{"$set": bson.M{"signals": groupSignal.Signals}},
+	)
+	if err != nil {
+		log.Printf("Error updating group signals: %v\n", err)
+		return nil, fmt.Errorf("failed to update group signals: %w", err)
+	}
+
+	return &groupSignal, nil
 }
 
 func (r *MongoSignalRepo) CreateGroupSignal(ctx context.Context, data *models.GroupSignal) (*models.GroupSignal, error) {
