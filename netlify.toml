@@ -1,8 +1,9 @@
 [build]
-  functions = "netlify/functions"  # The directory where your serverless functions are located
-  publish = "public"  # If you have a frontend, specify its directory
+  base = "./"
+  functions = "netlify/functions"
+  publish = ""
 
 [[redirects]]
   from = "/"
-  to = "/.netlify/functions/main"  # The endpoint where your Go function is accessible
+  to = "/.netlify/functions/main" # Redirecting to the function endpoint
   status = 200
