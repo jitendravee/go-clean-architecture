@@ -2,26 +2,47 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/jitendravee/clean_go/internals/db"
 	"github.com/jitendravee/clean_go/internals/store"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	addr := os.Getenv("ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+
+	mongoURL := os.Getenv("MONGO_URL")
+	if mongoURL == "" {
+		log.Fatal("MONGO_URL environment variable not set")
+	}
+
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "user"
+	}
+
 	cfg := config{
-		addr: ":8080",
+		addr: addr,
 		db: dbConfig{
-			addr:   "mongodb+srv://jitendrajat6397:Jitendra6323@jitendra.yaofk.mongodb.net/",
-			dbName: "user",
+			addr:   mongoURL,
+			dbName: dbName,
 		},
 	}
-	db, err := db.New(
-		cfg.db.addr,
-		cfg.db.dbName,
-	)
+
+	db, err := db.New(cfg.db.addr, cfg.db.dbName)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	store := store.NewStorage(db)
 
 	app := &application{
@@ -30,5 +51,4 @@ func main() {
 	}
 	mux := app.mount(db)
 	log.Fatal(app.run(mux))
-
 }
