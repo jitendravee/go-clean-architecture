@@ -1,6 +1,6 @@
 module github.com/jitendravee/clean_go
 
-go 1.21.6
+go 1.21
 
 require go.mongodb.org/mongo-driver v1.17.1
 
