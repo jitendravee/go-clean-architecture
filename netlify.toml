@@ -1,7 +1,9 @@
 [build]
-  base = "./"
-  functions = "netlify/functions"
-  publish = ""
+  base = "./"                          # Root of the repository
+  functions = "netlify/functions"      # Where your Go functions are located
+  publish = ""                          # No static assets
+  command = ""                          # No build command for Go API
+
 
 [[redirects]]
   from = "/"
