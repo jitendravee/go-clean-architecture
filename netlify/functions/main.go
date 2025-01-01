@@ -113,7 +113,6 @@ func (app *application) run(mux http.Handler) error {
 
 // Main handler for Netlify function
 func Handler(w http.ResponseWriter, r *http.Request) {
-	// Load config from environment
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatal("Error loading configuration: ", err)
