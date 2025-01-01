@@ -4,7 +4,7 @@ go 1.21
 
 require go.mongodb.org/mongo-driver v1.17.1
 
-require github.com/joho/godotenv v1.5.1 // indirect
+require github.com/joho/godotenv v1.5.1
 
 require (
 	github.com/go-chi/chi v1.5.5

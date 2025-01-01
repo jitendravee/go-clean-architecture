@@ -1,11 +1,10 @@
 [build]
   base = "./"                          # Root of the repository
-  functions = "netlify/functions"      # Where your Go functions are located
-  publish = ""                          # No static assets
-  command = ""                          # No build command for Go API
-
+  functions = "netlify/functions"      # Directory for serverless functions
+  publish = ""                         # No static assets (for API deployment)
+  command = "GOOS=linux GOARCH=amd64 go build -o netlify/functions/main ./cmd/api"
 
 [[redirects]]
   from = "/"
-  to = "/.netlify/functions/main" # Redirecting to the function endpoint
+  to = "/.netlify/functions/main"      # Redirect to the Go API function endpoint
   status = 200
