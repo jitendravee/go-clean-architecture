@@ -1,15 +1,24 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
 	"github.com/jitendravee/clean_go/internals/db"
 	"github.com/jitendravee/clean_go/internals/store"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Fetch environment variables
+
+	envPath := flag.String("env", ".env", "Path to .env file")
+	flag.Parse()
+
+	err := godotenv.Load(*envPath)
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080" // Default port
