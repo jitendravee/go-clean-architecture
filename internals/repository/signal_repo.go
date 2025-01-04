@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/jitendravee/clean_go/internals/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -47,43 +48,21 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to fetch group: %w", err)
 	}
 
-	// Update the vehicle count for each signal
-	totalCycle := 120
+	// Update vehicle counts based on the request
 	totalVehicleCount := 0
-
-	// Loop over the signals and update the vehicle count
 	for _, signalUpdate := range updateCountRequest.Signals {
-		// Find the signal in the group's signals by SignalSingleId
 		for i, signal := range groupSignal.Signals {
 			if signal.SingleSignalId == signalUpdate.SignalSingleId {
 				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
 			}
-			// Accumulate the total vehicle count
 			totalVehicleCount += groupSignal.Signals[i].VehicleCount
 		}
 	}
 
-	// Recalculate the green, yellow, and red durations for all signals
-	for i, signal := range groupSignal.Signals {
-		// Calculate green duration based on the proportion of vehicle count
-		greenDuration := int((float64(signal.VehicleCount) / float64(totalVehicleCount)) * float64(totalCycle))
-		if greenDuration < 10 {
-			greenDuration = 10
-		} else if greenDuration > 60 {
-			greenDuration = 60
-		}
+	// Recalculate durations using the improved algorithm
+	groupSignal.Signals = calculateSignalDurations(120, groupSignal.Signals, totalVehicleCount)
 
-		// Set the yellow and red durations (fixed in this example)
-		yellowDuration := 5
-		redDuration := totalCycle - greenDuration - yellowDuration
-
-		// Update the signal's durations
-		groupSignal.Signals[i].GreenDuration = greenDuration
-		groupSignal.Signals[i].YellowDuration = yellowDuration
-		groupSignal.Signals[i].RedDuration = redDuration
-	}
-
-	// Update the signals in the database with the new counts and durations
+	// Update the signals in the database
 	_, err = collection.UpdateOne(
 		ctx,
 		bson.M{"_id": objectGroupId},
@@ -94,8 +73,52 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to update group signals: %w", err)
 	}
 
-	// Return the updated group signal
 	return &groupSignal, nil
+}
+
+// Helper function for duration calculation
+func calculateSignalDurations(totalCycle int, signals []models.SingleSignal, totalVehicleCount int) []models.SingleSignal {
+	minGreen := 10
+	minYellow := 3
+	maxGreen := totalCycle - minYellow - 2
+
+	// Step 1: Calculate proportional green durations
+	greenDurations := make([]float64, len(signals))
+	for i, signal := range signals {
+		proportionalGreen := (float64(signal.VehicleCount) / float64(totalVehicleCount)) * float64(totalCycle)
+		greenDurations[i] = math.Max(float64(minGreen), math.Min(proportionalGreen, float64(maxGreen)))
+
+		log.Printf("Signal ID: %s, Vehicle Count: %d, Proportional Green: %f, Total Vehicles: %d",
+			signal.SingleSignalId, signal.VehicleCount, proportionalGreen, totalVehicleCount)
+	}
+
+	// Step 2: Adjust durations if total exceeds available time
+	totalGreenTime := 0.0
+	for _, green := range greenDurations {
+		totalGreenTime += green
+	}
+
+	availableGreenTime := float64(totalCycle - len(signals)*minYellow)
+	if totalGreenTime > availableGreenTime {
+		scalingFactor := availableGreenTime / totalGreenTime
+		for i := range greenDurations {
+			greenDurations[i] *= scalingFactor
+		}
+	}
+
+	// Step 3: Assign durations back to signals
+	for i, signal := range signals {
+		signal.GreenDuration = int(greenDurations[i])
+		signal.YellowDuration = int(math.Max(float64(minYellow), greenDurations[i]*0.1))
+		signal.RedDuration = totalCycle - signal.GreenDuration - signal.YellowDuration
+
+		log.Printf("Signal ID: %s, Final Green Duration: %d, Yellow Duration: %d, Red Duration: %d",
+			signal.SingleSignalId, signal.GreenDuration, signal.YellowDuration, signal.RedDuration)
+
+		signals[i] = signal
+	}
+
+	return signals
 }
 
 func (r *MongoSignalRepo) CreateGroupSignal(ctx context.Context, data *models.GroupSignal) (*models.GroupSignal, error) {
