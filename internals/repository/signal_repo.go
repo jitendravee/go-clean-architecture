@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 
 	"github.com/jitendravee/clean_go/internals/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -29,16 +28,15 @@ func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	collection := r.db.Collection("signals")
 
-	// Convert groupId to ObjectID
+	// Fetch the group signals document
+	var groupSignal models.GroupSignal
 	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
 	if err != nil {
 		log.Printf("Error converting groupId to ObjectID: %v\n", err)
 		return nil, fmt.Errorf("invalid groupId format: %w", err)
 	}
-
-	// Fetch the existing group signal document
-	var groupSignal models.GroupSignal
-	err = collection.FindOne(ctx, bson.M{"_id": objectGroupId}).Decode(&groupSignal)
+	filter := bson.M{"_id": objectGroupId}
+	err = collection.FindOne(ctx, filter).Decode(&groupSignal)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			log.Printf("Group not found for groupId: %s\n", groupId)
@@ -48,24 +46,22 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to fetch group: %w", err)
 	}
 
-	// Update vehicle counts based on the request
-	totalVehicleCount := 0
+	// Map input vehicle counts to signals
 	for _, signalUpdate := range updateCountRequest.Signals {
 		for i, signal := range groupSignal.Signals {
 			if signal.SingleSignalId == signalUpdate.SignalSingleId {
 				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
 			}
-			totalVehicleCount += groupSignal.Signals[i].VehicleCount
 		}
 	}
 
-	// Recalculate durations using the improved algorithm
-	groupSignal.Signals = calculateSignalDurations(120, groupSignal.Signals, totalVehicleCount)
+	// Calculate signal durations
+	groupSignal.Signals = calculateSignalDurationsBasedOnCount(120, groupSignal.Signals)
 
 	// Update the signals in the database
 	_, err = collection.UpdateOne(
 		ctx,
-		bson.M{"_id": objectGroupId},
+		filter,
 		bson.M{"$set": bson.M{"signals": groupSignal.Signals}},
 	)
 	if err != nil {
@@ -76,46 +72,38 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 	return &groupSignal, nil
 }
 
-// Helper function for duration calculation
-func calculateSignalDurations(totalCycle int, signals []models.SingleSignal, totalVehicleCount int) []models.SingleSignal {
-	minGreen := 10
-	minYellow := 3
-	maxGreen := totalCycle - minYellow - 2
+// Helper function to calculate signal durations for intersections
+func calculateSignalDurationsBasedOnCount(totalCycle int, signals []models.SingleSignal) []models.SingleSignal {
+	const minGreen, maxGreen, minYellow = 10, 60, 3
 
-	// Step 1: Calculate proportional green durations
-	greenDurations := make([]float64, len(signals))
-	for i, signal := range signals {
-		proportionalGreen := (float64(signal.VehicleCount) / float64(totalVehicleCount)) * float64(totalCycle)
-		greenDurations[i] = math.Max(float64(minGreen), math.Min(proportionalGreen, float64(maxGreen)))
+	noOfSignals := len(signals)
 
-		log.Printf("Signal ID: %s, Vehicle Count: %d, Proportional Green: %f, Total Vehicles: %d",
-			signal.SingleSignalId, signal.VehicleCount, proportionalGreen, totalVehicleCount)
-	}
+	// Calculate green and yellow durations for each signal
+	for i := range signals {
+		// Calculate green time as a multiple of the vehicle count
+		greenTime := signals[i].VehicleCount * 2
 
-	// Step 2: Adjust durations if total exceeds available time
-	totalGreenTime := 0.0
-	for _, green := range greenDurations {
-		totalGreenTime += green
-	}
-
-	availableGreenTime := float64(totalCycle - len(signals)*minYellow)
-	if totalGreenTime > availableGreenTime {
-		scalingFactor := availableGreenTime / totalGreenTime
-		for i := range greenDurations {
-			greenDurations[i] *= scalingFactor
+		// Enforce minimum and maximum bounds for green time
+		if greenTime < minGreen {
+			greenTime = minGreen
+		} else if greenTime > maxGreen {
+			greenTime = maxGreen
 		}
+
+		// Assign calculated green time and fixed yellow duration
+		signals[i].GreenDuration = greenTime
+		signals[i].YellowDuration = minYellow
 	}
 
-	// Step 3: Assign durations back to signals
-	for i, signal := range signals {
-		signal.GreenDuration = int(greenDurations[i])
-		signal.YellowDuration = int(math.Max(float64(minYellow), greenDurations[i]*0.1))
-		signal.RedDuration = totalCycle - signal.GreenDuration - signal.YellowDuration
-
-		log.Printf("Signal ID: %s, Final Green Duration: %d, Yellow Duration: %d, Red Duration: %d",
-			signal.SingleSignalId, signal.GreenDuration, signal.YellowDuration, signal.RedDuration)
-
-		signals[i] = signal
+	// Calculate red durations for synchronization
+	for i := 0; i < noOfSignals; i++ {
+		totalOtherDurations := 0
+		for j := 0; j < noOfSignals; j++ {
+			if j != i {
+				totalOtherDurations += signals[j].GreenDuration + signals[j].YellowDuration
+			}
+		}
+		signals[i].RedDuration = totalOtherDurations
 	}
 
 	return signals
