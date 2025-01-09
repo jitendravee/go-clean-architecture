@@ -51,12 +51,20 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		for i, signal := range groupSignal.Signals {
 			if signal.SingleSignalId == signalUpdate.SignalSingleId {
 				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
+				groupSignal.Signals[i].GreenDuration = signalUpdate.GreenDuration
+				groupSignal.Signals[i].RedDuration = signalUpdate.RedDuration
+				if groupSignal.Signals[i].RedDuration == 0 {
+					groupSignal.Signals[i].CurrentColor = "green"
+				} else {
+					groupSignal.Signals[i].CurrentColor = "red"
+				}
+				groupSignal.Signals[i].YellowDuration = signalUpdate.YellowDuration
 			}
 		}
 	}
 
 	// Calculate signal durations
-	groupSignal.Signals = calculateSignalDurationsBasedOnCount(120, groupSignal.Signals)
+	// groupSignal.Signals = calculateSignalDurationsBasedOnCount(120, groupSignal.Signals)
 
 	// Update the signals in the database
 	_, err = collection.UpdateOne(

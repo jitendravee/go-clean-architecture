@@ -18,7 +18,7 @@ type SingleSignal struct {
 	VehicleCount   int    `json:"vehicle_count" bson:"vehicle_count"`
 	GreenDuration  int    `json:"green_duration"`
 	YellowDuration int    `json:"yellow_duration"`
-	RedDuration    int    `json:"red_duaration"`
+	RedDuration    int    `json:"red_duration"`
 }
 
 type UpdateSignalCountGroup struct {
@@ -28,4 +28,7 @@ type UpdateSignalCountGroup struct {
 type UpdateVehicleCountRequest struct {
 	SignalSingleId string `json:"signal_id"`
 	VehicleCount   int    `json:"vehicle_count"`
+	GreenDuration  int    `json:"green_duration"`
+	YellowDuration int    `json:"yellow_duration"`
+	RedDuration    int    `json:"red_duration"`
 }
