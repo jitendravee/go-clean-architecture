@@ -73,7 +73,7 @@ func main() {
 		addr = ":8080" // Default port
 	}
 
-	mongoURL := "mongodb+srv://jitendrajat6397:Jitendra6323@jitendra.yaofk.mongodb.net/"
+	mongoURL := os.Getenv("MONGO_URL")
 	if mongoURL == "" {
 		log.Fatal("MONGO_URL environment variable not set")
 	}
