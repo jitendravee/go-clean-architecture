@@ -25,6 +25,7 @@ type MongoSignalRepo struct {
 func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 	return &MongoSignalRepo{db}
 }
+
 func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	collection := r.db.Collection("signals")
 
@@ -32,21 +33,18 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 	var groupSignal models.GroupSignal
 	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
 	if err != nil {
-		log.Printf("Error converting groupId to ObjectID: %v\n", err)
 		return nil, fmt.Errorf("invalid groupId format: %w", err)
 	}
+
 	filter := bson.M{"_id": objectGroupId}
-	err = collection.FindOne(ctx, filter).Decode(&groupSignal)
-	if err != nil {
+	if err := collection.FindOne(ctx, filter).Decode(&groupSignal); err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Printf("Group not found for groupId: %s\n", groupId)
 			return nil, fmt.Errorf("group not found")
 		}
-		log.Printf("Error fetching group: %v\n", err)
 		return nil, fmt.Errorf("failed to fetch group: %w", err)
 	}
 
-	// Map input vehicle counts to signals
+	// Update vehicle counts and calculate signal durations
 	for _, signalUpdate := range updateCountRequest.Signals {
 		for i, signal := range groupSignal.Signals {
 			if signal.SingleSignalId == signalUpdate.SignalSingleId {
@@ -54,18 +52,10 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 			}
 		}
 	}
-
-	// Calculate signal durations
-	groupSignal.Signals = calculateSignalDurationsBasedOnCount(120, groupSignal.Signals)
+	groupSignal.Signals = calculateSignalDurationsBasedOnCount(groupSignal.Signals)
 
 	// Update the signals in the database
-	_, err = collection.UpdateOne(
-		ctx,
-		filter,
-		bson.M{"$set": bson.M{"signals": groupSignal.Signals}},
-	)
-	if err != nil {
-		log.Printf("Error updating group signals: %v\n", err)
+	if _, err := collection.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"signals": groupSignal.Signals}}); err != nil {
 		return nil, fmt.Errorf("failed to update group signals: %w", err)
 	}
 
@@ -73,15 +63,19 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 }
 
 // Helper function to calculate signal durations for intersections
-func calculateSignalDurationsBasedOnCount(totalCycle int, signals []models.SingleSignal) []models.SingleSignal {
-	const minGreen, maxGreen, minYellow = 10, 60, 3
+func calculateSignalDurationsBasedOnCount(signals []models.SingleSignal) []models.SingleSignal {
+	const (
+		minGreen   = 10
+		maxGreen   = 60
+		yellowTime = 5
+		defaultRed = 120
+	)
 
 	noOfSignals := len(signals)
 
 	// Calculate green and yellow durations for each signal
 	for i := range signals {
-		// Calculate green time as a multiple of the vehicle count
-		greenTime := signals[i].VehicleCount * 2
+		greenTime := signals[i].VehicleCount * 2 // Dynamic green time calculation
 
 		// Enforce minimum and maximum bounds for green time
 		if greenTime < minGreen {
@@ -90,20 +84,26 @@ func calculateSignalDurationsBasedOnCount(totalCycle int, signals []models.Singl
 			greenTime = maxGreen
 		}
 
-		// Assign calculated green time and fixed yellow duration
 		signals[i].GreenDuration = greenTime
-		signals[i].YellowDuration = minYellow
+		signals[i].YellowDuration = yellowTime
 	}
 
 	// Calculate red durations for synchronization
+	// Calculate red durations for synchronization
 	for i := 0; i < noOfSignals; i++ {
-		totalOtherDurations := 0
-		for j := 0; j < noOfSignals; j++ {
-			if j != i {
-				totalOtherDurations += signals[j].GreenDuration + signals[j].YellowDuration
+		if i == 0 {
+			// For the first signal, red duration is set to 0 or any default value
+			signals[i].RedDuration = 0
+		} else {
+			// For subsequent signals, red duration is the red duration of the previous signal + the yellow and green durations of the previous signal
+			if i == noOfSignals-1 {
+				// For the last signal, red duration is the red duration of the previous signal + its own green duration
+				signals[i].RedDuration = signals[i-1].RedDuration + signals[i-1].GreenDuration
+			} else {
+				// For all other signals, red duration is calculated as usual
+				signals[i].RedDuration = signals[i-1].RedDuration + signals[i-1].YellowDuration + signals[i-1].GreenDuration
 			}
 		}
-		signals[i].RedDuration = totalOtherDurations
 	}
 
 	return signals

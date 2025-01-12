@@ -6,6 +6,8 @@ require go.mongodb.org/mongo-driver v1.17.1
 
 require github.com/joho/godotenv v1.5.1
 
+require github.com/rs/cors v1.11.1 // indirect
+
 require (
 	github.com/aws/aws-lambda-go v1.47.0
 	github.com/go-chi/chi v1.5.5
