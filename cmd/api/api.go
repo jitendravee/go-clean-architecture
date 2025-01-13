@@ -52,6 +52,7 @@ func (app *application) mount(db *mongo.Database) http.Handler {
 		r.Get("/signal", signalHandler.GetSignalHandler)
 		r.Get("/signal/{group_id}", signalHandler.GetGroupSignalByIdHandler)
 		r.Patch("/signal/{group_id}/update-count", signalHandler.UpdateVechileCountHandler)
+		r.Patch("/signal/{group_id}/update-image", signalHandler.UpdateImageUrlHandler)
 	})
 
 	return r

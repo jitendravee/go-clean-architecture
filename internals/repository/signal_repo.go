@@ -15,6 +15,7 @@ type SignalRepo interface {
 	CreateGroupSignal(context.Context, *models.GroupSignal) (*models.GroupSignal, error)
 	GetAllSignal(context.Context) (*models.SignalGroup, error)
 	GetGroupSignalById(context.Context, string) (*models.GroupSignal, error)
+	UpdateImageUrl(context.Context, *models.ImageRequestList, string) (*models.GroupSignal, error)
 	UpdateVechileCountBySignalId(context.Context, *models.UpdateSignalCountGroup, string) (*models.GroupSignal, error)
 }
 
@@ -25,6 +26,55 @@ type MongoSignalRepo struct {
 func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 	return &MongoSignalRepo{db}
 }
+func (r *MongoSignalRepo) UpdateImageUrl(ctx context.Context, imagerequestList *models.ImageRequestList, groupId string) (*models.GroupSignal, error) {
+	collection := r.db.Collection("signals")
+
+	var groupSignal models.GroupSignal
+
+	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
+	if err != nil {
+		log.Printf("Error converting groupId to ObjectID: %v\n", err)
+		return nil, fmt.Errorf("invalid groupId format: %w", err)
+	}
+
+	filter := bson.M{"_id": objectGroupId}
+	err = collection.FindOne(ctx, filter).Decode(&groupSignal)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Printf("Group not found for groupId: %s\n", groupId)
+			return nil, fmt.Errorf("group not found")
+		}
+		log.Printf("Error fetching group: %v\n", err)
+		return nil, fmt.Errorf("failed to fetch group: %w", err)
+	}
+
+	for _, imageUpdate := range imagerequestList.ImagesList {
+		for i, signal := range groupSignal.Signals {
+			if signal.SingleSignalId == imageUpdate.SignalSingleId {
+				groupSignal.Signals[i].SignalImage = imageUpdate.SignalImage
+			}
+		}
+	}
+
+	updateResult, err := collection.UpdateOne(
+		ctx,
+		filter,
+		bson.M{"$set": bson.M{"signals": groupSignal.Signals}},
+	)
+
+	if err != nil {
+		log.Printf("Error updating group signals: %v\n", err)
+		return nil, fmt.Errorf("failed to update group signals: %w", err)
+	}
+
+	if updateResult.ModifiedCount == 0 {
+		log.Println("No documents were updated.")
+		return nil, fmt.Errorf("no documents were updated")
+	}
+
+	return &groupSignal, nil
+}
+
 func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	collection := r.db.Collection("signals")
 

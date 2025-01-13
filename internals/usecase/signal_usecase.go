@@ -31,3 +31,7 @@ func (uc *SignalUseCase) GetGroupSignalByIdUseCase(ctx context.Context, groupId 
 func (uc *SignalUseCase) UpdateVechileCountBySignalIdUseCase(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	return uc.SignalRepo.UpdateVechileCountBySignalId(ctx, updateCountRequest, groupId)
 }
+
+func (uc *SignalUseCase) UpdateImageUrlUseCase(ctx context.Context, imageRequestList *models.ImageRequestList, groupId string) (*models.GroupSignal, error) {
+	return uc.SignalRepo.UpdateImageUrl(ctx, imageRequestList, groupId)
+}

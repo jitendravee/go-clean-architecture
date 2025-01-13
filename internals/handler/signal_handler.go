@@ -105,3 +105,24 @@ func (h *SignalHandler) UpdateVechileCountHandler(w http.ResponseWriter, r *http
 
 	}
 }
+func (h *SignalHandler) UpdateImageUrlHandler(w http.ResponseWriter, r *http.Request) {
+	groupId := utils.GetParams(r, "group_id")
+	var updateImageUrlRequest models.ImageRequestList
+	err := utils.ReadJSON(w, r, &updateImageUrlRequest)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+	updatedImageData, err := h.signalUseCase.UpdateImageUrlUseCase(r.Context(), &updateImageUrlRequest, groupId)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update vehicle count: %v", err), http.StatusInternalServerError)
+		return
+
+	}
+	err = utils.WriteJSON(w, http.StatusOK, updatedImageData)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+
+	}
+
+}

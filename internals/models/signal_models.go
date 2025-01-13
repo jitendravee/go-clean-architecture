@@ -34,3 +34,11 @@ type UpdateVehicleCountRequest struct {
 	RedDuration    int    `json:"red_duration"`
 	SignalImage    string `json:"signal_image"`
 }
+
+type ImageRequestList struct {
+	ImagesList []ImageSingleRequest `json:"image_list"`
+}
+type ImageSingleRequest struct {
+	SignalSingleId string `json:"signal_id"`
+	SignalImage    string `json:"signal_image"`
+}
