@@ -28,13 +28,13 @@ func NewSignalRepo(db *mongo.Database) *MongoSignalRepo {
 func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, updateCountRequest *models.UpdateSignalCountGroup, groupId string) (*models.GroupSignal, error) {
 	collection := r.db.Collection("signals")
 
-	// Fetch the group signals document
 	var groupSignal models.GroupSignal
 	objectGroupId, err := primitive.ObjectIDFromHex(groupId)
 	if err != nil {
 		log.Printf("Error converting groupId to ObjectID: %v\n", err)
 		return nil, fmt.Errorf("invalid groupId format: %w", err)
 	}
+
 	filter := bson.M{"_id": objectGroupId}
 	err = collection.FindOne(ctx, filter).Decode(&groupSignal)
 	if err != nil {
@@ -53,6 +53,7 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
 				groupSignal.Signals[i].GreenDuration = signalUpdate.GreenDuration
 				groupSignal.Signals[i].RedDuration = signalUpdate.RedDuration
+				groupSignal.Signals[i].SignalImage = signalUpdate.SignalImage
 				if groupSignal.Signals[i].RedDuration == 0 {
 					groupSignal.Signals[i].CurrentColor = "green"
 				} else {
@@ -63,11 +64,7 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		}
 	}
 
-	// Calculate signal durations
-	// groupSignal.Signals = calculateSignalDurationsBasedOnCount(120, groupSignal.Signals)
-
-	// Update the signals in the database
-	_, err = collection.UpdateOne(
+	updateResult, err := collection.UpdateOne(
 		ctx,
 		filter,
 		bson.M{"$set": bson.M{"signals": groupSignal.Signals}},
@@ -77,44 +74,12 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 		return nil, fmt.Errorf("failed to update group signals: %w", err)
 	}
 
+	if updateResult.ModifiedCount == 0 {
+		log.Println("No documents were updated.")
+		return nil, fmt.Errorf("no documents were updated")
+	}
+
 	return &groupSignal, nil
-}
-
-// Helper function to calculate signal durations for intersections
-func calculateSignalDurationsBasedOnCount(totalCycle int, signals []models.SingleSignal) []models.SingleSignal {
-	const minGreen, maxGreen, minYellow = 10, 60, 3
-
-	noOfSignals := len(signals)
-
-	// Calculate green and yellow durations for each signal
-	for i := range signals {
-		// Calculate green time as a multiple of the vehicle count
-		greenTime := signals[i].VehicleCount * 2
-
-		// Enforce minimum and maximum bounds for green time
-		if greenTime < minGreen {
-			greenTime = minGreen
-		} else if greenTime > maxGreen {
-			greenTime = maxGreen
-		}
-
-		// Assign calculated green time and fixed yellow duration
-		signals[i].GreenDuration = greenTime
-		signals[i].YellowDuration = minYellow
-	}
-
-	// Calculate red durations for synchronization
-	for i := 0; i < noOfSignals; i++ {
-		totalOtherDurations := 0
-		for j := 0; j < noOfSignals; j++ {
-			if j != i {
-				totalOtherDurations += signals[j].GreenDuration + signals[j].YellowDuration
-			}
-		}
-		signals[i].RedDuration = totalOtherDurations
-	}
-
-	return signals
 }
 
 func (r *MongoSignalRepo) CreateGroupSignal(ctx context.Context, data *models.GroupSignal) (*models.GroupSignal, error) {

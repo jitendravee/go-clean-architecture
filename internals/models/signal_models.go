@@ -19,6 +19,7 @@ type SingleSignal struct {
 	GreenDuration  int    `json:"green_duration"`
 	YellowDuration int    `json:"yellow_duration"`
 	RedDuration    int    `json:"red_duration"`
+	SignalImage    string `json:"signal_image"`
 }
 
 type UpdateSignalCountGroup struct {
@@ -31,4 +32,5 @@ type UpdateVehicleCountRequest struct {
 	GreenDuration  int    `json:"green_duration"`
 	YellowDuration int    `json:"yellow_duration"`
 	RedDuration    int    `json:"red_duration"`
+	SignalImage    string `json:"signal_image"`
 }
