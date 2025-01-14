@@ -103,7 +103,6 @@ func (r *MongoSignalRepo) UpdateVechileCountBySignalId(ctx context.Context, upda
 				groupSignal.Signals[i].VehicleCount = signalUpdate.VehicleCount
 				groupSignal.Signals[i].GreenDuration = signalUpdate.GreenDuration
 				groupSignal.Signals[i].RedDuration = signalUpdate.RedDuration
-				groupSignal.Signals[i].SignalImage = signalUpdate.SignalImage
 				if groupSignal.Signals[i].RedDuration == 0 {
 					groupSignal.Signals[i].CurrentColor = "green"
 				} else {
